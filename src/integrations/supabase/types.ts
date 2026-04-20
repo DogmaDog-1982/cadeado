@@ -14,13 +14,120 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      games: {
+        Row: {
+          code: string
+          created_at: string
+          current_position_for_p1: number
+          current_position_for_p2: number
+          current_turn: number
+          id: string
+          player1_guesses: Json
+          player1_name: string | null
+          player1_secret: number[]
+          player2_guesses: Json
+          player2_name: string | null
+          player2_secret: number[]
+          status: string
+          updated_at: string
+          winner: number | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          current_position_for_p1?: number
+          current_position_for_p2?: number
+          current_turn?: number
+          id?: string
+          player1_guesses?: Json
+          player1_name?: string | null
+          player1_secret: number[]
+          player2_guesses?: Json
+          player2_name?: string | null
+          player2_secret: number[]
+          status?: string
+          updated_at?: string
+          winner?: number | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          current_position_for_p1?: number
+          current_position_for_p2?: number
+          current_turn?: number
+          id?: string
+          player1_guesses?: Json
+          player1_name?: string | null
+          player1_secret?: number[]
+          player2_guesses?: Json
+          player2_name?: string | null
+          player2_secret?: number[]
+          status?: string
+          updated_at?: string
+          winner?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      games_public: {
+        Row: {
+          code: string | null
+          created_at: string | null
+          current_position_for_p1: number | null
+          current_position_for_p2: number | null
+          current_turn: number | null
+          id: string | null
+          player1_guesses: Json | null
+          player1_name: string | null
+          player2_guesses: Json | null
+          player2_name: string | null
+          status: string | null
+          updated_at: string | null
+          winner: number | null
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string | null
+          current_position_for_p1?: number | null
+          current_position_for_p2?: number | null
+          current_turn?: number | null
+          id?: string | null
+          player1_guesses?: Json | null
+          player1_name?: string | null
+          player2_guesses?: Json | null
+          player2_name?: string | null
+          status?: string | null
+          updated_at?: string | null
+          winner?: number | null
+        }
+        Update: {
+          code?: string | null
+          created_at?: string | null
+          current_position_for_p1?: number | null
+          current_position_for_p2?: number | null
+          current_turn?: number | null
+          id?: string | null
+          player1_guesses?: Json | null
+          player1_name?: string | null
+          player2_guesses?: Json | null
+          player2_name?: string | null
+          status?: string | null
+          updated_at?: string | null
+          winner?: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      join_game: {
+        Args: { _code: string; _name: string; _secret: number[] }
+        Returns: string
+      }
+      make_guess: {
+        Args: { _game_id: string; _guess: number; _player: number }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
