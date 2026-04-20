@@ -42,6 +42,8 @@ const Index = () => {
   const [game, setGame] = useState<GameRow | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [shake, setShake] = useState(false);
+  const [muted, setMuted] = useState(sfx.isMuted());
+  const [finishedSoundPlayed, setFinishedSoundPlayed] = useState(false);
 
   // restore session
   useEffect(() => {
