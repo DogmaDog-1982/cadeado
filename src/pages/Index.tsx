@@ -318,7 +318,17 @@ const Index = () => {
           <div className="text-xs text-muted-foreground">Sala</div>
           <div className="font-mono-arcade font-bold tracking-widest">{game.code}</div>
         </div>
-        <button onClick={leaveGame} className="text-xs text-muted-foreground hover:underline">sair</button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setMuted(toggleMute())}
+            className="p-2 rounded-lg border-2 border-foreground bg-card"
+            style={{ boxShadow: "var(--shadow-pop-sm)" }}
+            aria-label={muted ? "Ativar som" : "Silenciar"}
+          >
+            {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
+          <button onClick={leaveGame} className="text-xs text-muted-foreground hover:underline">sair</button>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3">
