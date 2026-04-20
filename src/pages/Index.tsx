@@ -77,7 +77,18 @@ const Index = () => {
       .select("*")
       .eq("id", id)
       .maybeSingle();
-    if (error || !data) return;
+    if (error) {
+      console.error("loadGame error", error);
+      return;
+    }
+    if (!data) {
+      // game no longer exists — clear stale session
+      localStorage.removeItem(STORAGE_KEY);
+      setSession(null);
+      setGame(null);
+      setMode("menu");
+      return;
+    }
     setGame(data as any);
   }
 
