@@ -75,6 +75,24 @@ const Index = () => {
     };
   }, [session?.gameId]);
 
+  // play win/lose sound when game finishes
+  useEffect(() => {
+    if (!game || !session) return;
+    if (game.status === "finished" && !finishedSoundPlayed) {
+      if (game.winner === session.player) sfx.win();
+      else sfx.lose();
+      setFinishedSoundPlayed(true);
+    }
+    if (game.status !== "finished" && finishedSoundPlayed) {
+      setFinishedSoundPlayed(false);
+    }
+  }, [game?.status, game?.winner, session?.player, finishedSoundPlayed]);
+
+  // sync mute state to sfx module
+  useEffect(() => {
+    sfx.setMuted(muted);
+  }, [muted]);
+
   async function loadGame(id: string) {
     const { data, error } = await supabase
       .from("games_public" as any)
