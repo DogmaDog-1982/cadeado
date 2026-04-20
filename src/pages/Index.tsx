@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SecretInput } from "@/components/SecretInput";
 import { GuessPad } from "@/components/GuessPad";
 import { LockDisplay } from "@/components/LockDisplay";
 import { GuessHistory } from "@/components/GuessHistory";
-import { randomCode, randomSecret, type Guess } from "@/lib/game-utils";
+import { randomSecret, type Guess } from "@/lib/game-utils";
+import { sfx, toggleMute } from "@/lib/sfx";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { Volume2, VolumeX } from "lucide-react";
 
 type GameRow = {
   id: string;
@@ -110,28 +112,26 @@ const Index = () => {
   async function handleCreate() {
     if (!name.trim()) return toast.error("Digite seu nome");
     if (secret.some((d) => d < 0)) return toast.error("Defina os 4 dígitos do seu segredo");
-    const code = randomCode();
-    const placeholderSecret = randomSecret(); // p2 secret will be overwritten on join
-    const { data, error } = await supabase
-      .from("games")
-      .insert({
-        code,
-        player1_name: name.trim(),
-        player1_secret: secret,
-        player2_secret: placeholderSecret,
-      })
-      .select("id, code")
-      .single();
-    if (error || !data) return toast.error("Erro ao criar partida");
-    saveSession({ gameId: data.id, player: 1, name: name.trim() });
+    sfx.click();
+    const { data, error } = await supabase.rpc("create_game", {
+      _name: name.trim(),
+      _secret: secret,
+    });
+    if (error || !data || !data[0]) {
+      console.error("create_game error", error);
+      return toast.error(error?.message ?? "Erro ao criar partida");
+    }
+    const row = data[0] as { id: string; code: string };
+    saveSession({ gameId: row.id, player: 1, name: name.trim() });
     setMode("playing");
-    loadGame(data.id);
+    loadGame(row.id);
   }
 
   async function handleJoin() {
     if (!name.trim()) return toast.error("Digite seu nome");
     if (!joinCode.trim()) return toast.error("Digite o código da sala");
     if (secret.some((d) => d < 0)) return toast.error("Defina os 4 dígitos do seu segredo");
+    sfx.click();
     const { data, error } = await supabase.rpc("join_game", {
       _code: joinCode.trim().toUpperCase(),
       _name: name.trim(),
@@ -145,18 +145,25 @@ const Index = () => {
 
   async function handleGuess(n: number) {
     if (!session || !game) return;
+    sfx.click();
     const { data, error } = await supabase.rpc("make_guess", {
       _game_id: session.gameId,
       _player: session.player,
       _guess: n,
     });
-    if (error) return toast.error(error.message);
+    if (error) {
+      sfx.miss();
+      return toast.error(error.message);
+    }
     const result = data as { correct: boolean; hint: string };
     if (!result.correct) {
       setShake(true);
       setTimeout(() => setShake(false), 400);
+      if (result.hint === "higher") sfx.hintHigher();
+      else sfx.hintLower();
       toast(`Errou! Dica: ${result.hint === "higher" ? "MAIS ⬆" : "MENOS ⬇"}`);
     } else {
+      sfx.correct();
       toast.success("Acertou! Continue 🔥");
     }
   }
