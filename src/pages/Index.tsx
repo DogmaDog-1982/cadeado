@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SecretInput } from "@/components/SecretInput";
 import { GuessPad } from "@/components/GuessPad";
 import { LockDisplay } from "@/components/LockDisplay";
 import { GuessHistory } from "@/components/GuessHistory";
-import { randomCode, randomSecret, type Guess } from "@/lib/game-utils";
+import { randomSecret, type Guess } from "@/lib/game-utils";
+import { sfx, toggleMute } from "@/lib/sfx";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { Volume2, VolumeX } from "lucide-react";
 
 type GameRow = {
   id: string;
@@ -40,6 +42,8 @@ const Index = () => {
   const [game, setGame] = useState<GameRow | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [shake, setShake] = useState(false);
+  const [muted, setMuted] = useState(sfx.isMuted());
+  const [finishedSoundPlayed, setFinishedSoundPlayed] = useState(false);
 
   // restore session
   useEffect(() => {
@@ -70,6 +74,24 @@ const Index = () => {
       supabase.removeChannel(channel);
     };
   }, [session?.gameId]);
+
+  // play win/lose sound when game finishes
+  useEffect(() => {
+    if (!game || !session) return;
+    if (game.status === "finished" && !finishedSoundPlayed) {
+      if (game.winner === session.player) sfx.win();
+      else sfx.lose();
+      setFinishedSoundPlayed(true);
+    }
+    if (game.status !== "finished" && finishedSoundPlayed) {
+      setFinishedSoundPlayed(false);
+    }
+  }, [game?.status, game?.winner, session?.player, finishedSoundPlayed]);
+
+  // sync mute state to sfx module
+  useEffect(() => {
+    sfx.setMuted(muted);
+  }, [muted]);
 
   async function loadGame(id: string) {
     const { data, error } = await supabase
@@ -110,28 +132,26 @@ const Index = () => {
   async function handleCreate() {
     if (!name.trim()) return toast.error("Digite seu nome");
     if (secret.some((d) => d < 0)) return toast.error("Defina os 4 dígitos do seu segredo");
-    const code = randomCode();
-    const placeholderSecret = randomSecret(); // p2 secret will be overwritten on join
-    const { data, error } = await supabase
-      .from("games")
-      .insert({
-        code,
-        player1_name: name.trim(),
-        player1_secret: secret,
-        player2_secret: placeholderSecret,
-      })
-      .select("id, code")
-      .single();
-    if (error || !data) return toast.error("Erro ao criar partida");
-    saveSession({ gameId: data.id, player: 1, name: name.trim() });
+    sfx.click();
+    const { data, error } = await supabase.rpc("create_game", {
+      _name: name.trim(),
+      _secret: secret,
+    });
+    if (error || !data || !data[0]) {
+      console.error("create_game error", error);
+      return toast.error(error?.message ?? "Erro ao criar partida");
+    }
+    const row = data[0] as { id: string; code: string };
+    saveSession({ gameId: row.id, player: 1, name: name.trim() });
     setMode("playing");
-    loadGame(data.id);
+    loadGame(row.id);
   }
 
   async function handleJoin() {
     if (!name.trim()) return toast.error("Digite seu nome");
     if (!joinCode.trim()) return toast.error("Digite o código da sala");
     if (secret.some((d) => d < 0)) return toast.error("Defina os 4 dígitos do seu segredo");
+    sfx.click();
     const { data, error } = await supabase.rpc("join_game", {
       _code: joinCode.trim().toUpperCase(),
       _name: name.trim(),
@@ -145,18 +165,25 @@ const Index = () => {
 
   async function handleGuess(n: number) {
     if (!session || !game) return;
+    sfx.click();
     const { data, error } = await supabase.rpc("make_guess", {
       _game_id: session.gameId,
       _player: session.player,
       _guess: n,
     });
-    if (error) return toast.error(error.message);
+    if (error) {
+      sfx.miss();
+      return toast.error(error.message);
+    }
     const result = data as { correct: boolean; hint: string };
     if (!result.correct) {
       setShake(true);
       setTimeout(() => setShake(false), 400);
+      if (result.hint === "higher") sfx.hintHigher();
+      else sfx.hintLower();
       toast(`Errou! Dica: ${result.hint === "higher" ? "MAIS ⬆" : "MENOS ⬇"}`);
     } else {
+      sfx.correct();
       toast.success("Acertou! Continue 🔥");
     }
   }
@@ -309,7 +336,17 @@ const Index = () => {
           <div className="text-xs text-muted-foreground">Sala</div>
           <div className="font-mono-arcade font-bold tracking-widest">{game.code}</div>
         </div>
-        <button onClick={leaveGame} className="text-xs text-muted-foreground hover:underline">sair</button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setMuted(toggleMute())}
+            className="p-2 rounded-lg border-2 border-foreground bg-card"
+            style={{ boxShadow: "var(--shadow-pop-sm)" }}
+            aria-label={muted ? "Ativar som" : "Silenciar"}
+          >
+            {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
+          <button onClick={leaveGame} className="text-xs text-muted-foreground hover:underline">sair</button>
+        </div>
       </header>
 
       <div className="grid grid-cols-2 gap-3">
