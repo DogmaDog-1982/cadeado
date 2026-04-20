@@ -120,6 +120,13 @@ export type Database = {
       }
     }
     Functions: {
+      create_game: {
+        Args: { _name: string; _secret: number[] }
+        Returns: {
+          code: string
+          id: string
+        }[]
+      }
       join_game: {
         Args: { _code: string; _name: string; _secret: number[] }
         Returns: string
