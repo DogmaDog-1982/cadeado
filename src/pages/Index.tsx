@@ -24,7 +24,7 @@ type GameRow = {
   status: string;
 };
 
-type Mode = "menu" | "create" | "join" | "playing";
+type Mode = "menu" | "create" | "join" | "reconnect" | "playing";
 
 const STORAGE_KEY = "cadeado-session";
 
