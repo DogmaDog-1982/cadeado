@@ -157,10 +157,43 @@ const Index = () => {
       _name: name.trim(),
       _secret: secret,
     });
-    if (error || !data) return toast.error(error?.message ?? "Erro ao entrar");
+    if (error || !data) {
+      // If room is full, suggest reconnect
+      if (error?.message?.includes("game full")) {
+        toast.error("Sala cheia. Se você já estava nela, use 'Reconectar'.");
+      } else {
+        toast.error(error?.message ?? "Erro ao entrar");
+      }
+      return;
+    }
     saveSession({ gameId: data as string, player: 2, name: name.trim() });
     setMode("playing");
     loadGame(data as string);
+  }
+
+  async function handleReconnect() {
+    if (!name.trim()) return toast.error("Digite o nome que você usou na sala");
+    if (!joinCode.trim()) return toast.error("Digite o código da sala");
+    sfx.click();
+    const { data, error } = await supabase.rpc("reconnect_game", {
+      _code: joinCode.trim().toUpperCase(),
+      _name: name.trim(),
+    });
+    if (error || !data || !data[0]) {
+      return toast.error(error?.message ?? "Não foi possível reconectar. Confira código e nome.");
+    }
+    const row = data[0] as { game_id: string; player: number };
+    saveSession({ gameId: row.game_id, player: row.player as 1 | 2, name: name.trim() });
+    setMode("playing");
+    loadGame(row.game_id);
+    toast.success(`Reconectado como Jogador ${row.player}!`);
+  }
+
+  function resumeSavedSession() {
+    if (!session) return;
+    sfx.click();
+    setMode("playing");
+    loadGame(session.gameId);
   }
 
   async function handleGuess(n: number) {
