@@ -306,11 +306,19 @@ const Index = () => {
   if (game.status === "waiting") {
     return (
       <main className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-md text-center space-y-6 pop-card-lg p-8 bg-card">
+        <div className="w-full max-w-md text-center space-y-5 pop-card-lg p-8 bg-card">
+          <div className="inline-block px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wide">
+            ✓ Você já está na sala
+          </div>
           <h2 className="text-2xl font-bold">Aguardando adversário…</h2>
-          <p className="text-sm text-muted-foreground">Compartilhe o código da sala:</p>
-          <div className="bg-accent border-2 border-foreground rounded-xl p-6">
-            <div className="text-5xl font-mono-arcade font-extrabold tracking-widest">{game.code}</div>
+          <p className="text-sm text-muted-foreground">
+            Você é o <strong>Jogador 1</strong>. Fique nesta tela — o jogo começa automaticamente quando o adversário entrar.
+          </p>
+          <div className="space-y-2">
+            <p className="text-xs uppercase tracking-wide font-bold text-muted-foreground">Envie este código para o adversário:</p>
+            <div className="bg-accent border-2 border-foreground rounded-xl p-6">
+              <div className="text-5xl font-mono-arcade font-extrabold tracking-widest">{game.code}</div>
+            </div>
           </div>
           <button
             onClick={() => {
@@ -321,6 +329,9 @@ const Index = () => {
           >
             Copiar código
           </button>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            ⚠️ Não use este código para "entrar na sala" — ele é só para o adversário. Se você tentar entrar com ele, vai dar "game full" porque seu lugar já está reservado aqui.
+          </p>
           <button onClick={leaveGame} className="block mx-auto text-sm text-muted-foreground hover:underline">
             cancelar
           </button>
