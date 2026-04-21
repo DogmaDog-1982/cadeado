@@ -401,7 +401,7 @@ const Index = () => {
                   </div>
                 )}
                 <div className="text-sm font-bold text-foreground pt-1">
-                  👇 TOQUE NUM NÚMERO PARA ENVIAR
+                  👇 Escolha um número e toque em ENVIAR
                 </div>
               </div>
               <GuessPad disabled={false} onGuess={handleGuess} />
