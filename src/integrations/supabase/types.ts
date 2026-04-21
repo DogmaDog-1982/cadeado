@@ -135,6 +135,13 @@ export type Database = {
         Args: { _game_id: string; _guess: number; _player: number }
         Returns: Json
       }
+      reconnect_game: {
+        Args: { _code: string; _name: string }
+        Returns: {
+          game_id: string
+          player: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

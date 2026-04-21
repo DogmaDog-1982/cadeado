@@ -24,7 +24,7 @@ type GameRow = {
   status: string;
 };
 
-type Mode = "menu" | "create" | "join" | "playing";
+type Mode = "menu" | "create" | "join" | "reconnect" | "playing";
 
 const STORAGE_KEY = "cadeado-session";
 
@@ -157,10 +157,43 @@ const Index = () => {
       _name: name.trim(),
       _secret: secret,
     });
-    if (error || !data) return toast.error(error?.message ?? "Erro ao entrar");
+    if (error || !data) {
+      // If room is full, suggest reconnect
+      if (error?.message?.includes("game full")) {
+        toast.error("Sala cheia. Se você já estava nela, use 'Reconectar'.");
+      } else {
+        toast.error(error?.message ?? "Erro ao entrar");
+      }
+      return;
+    }
     saveSession({ gameId: data as string, player: 2, name: name.trim() });
     setMode("playing");
     loadGame(data as string);
+  }
+
+  async function handleReconnect() {
+    if (!name.trim()) return toast.error("Digite o nome que você usou na sala");
+    if (!joinCode.trim()) return toast.error("Digite o código da sala");
+    sfx.click();
+    const { data, error } = await supabase.rpc("reconnect_game", {
+      _code: joinCode.trim().toUpperCase(),
+      _name: name.trim(),
+    });
+    if (error || !data || !data[0]) {
+      return toast.error(error?.message ?? "Não foi possível reconectar. Confira código e nome.");
+    }
+    const row = data[0] as { game_id: string; player: number };
+    saveSession({ gameId: row.game_id, player: row.player as 1 | 2, name: name.trim() });
+    setMode("playing");
+    loadGame(row.game_id);
+    toast.success(`Reconectado como Jogador ${row.player}!`);
+  }
+
+  function resumeSavedSession() {
+    if (!session) return;
+    sfx.click();
+    setMode("playing");
+    loadGame(session.gameId);
   }
 
   async function handleGuess(n: number) {
@@ -204,6 +237,20 @@ const Index = () => {
             </motion.h1>
             <p className="text-muted-foreground">Adivinhe o segredo do seu adversário antes que ele descubra o seu.</p>
           </header>
+          {session && (
+            <div className="pop-card p-4 bg-success/20 border-success space-y-2">
+              <div className="text-sm font-bold">🎮 Você tem uma partida em andamento</div>
+              <div className="text-xs text-muted-foreground">
+                Como <strong>{session.name}</strong> (Jogador {session.player})
+              </div>
+              <button
+                onClick={resumeSavedSession}
+                className="w-full pop-card p-3 font-bold bg-success text-success-foreground"
+              >
+                ▶ Voltar para a partida
+              </button>
+            </div>
+          )}
           <div className="space-y-3">
             <button
               onClick={() => setMode("create")}
@@ -216,6 +263,12 @@ const Index = () => {
               className="w-full pop-card p-5 text-xl font-bold bg-secondary text-secondary-foreground hover:translate-y-[-2px] transition-transform"
             >
               Entrar com código
+            </button>
+            <button
+              onClick={() => setMode("reconnect")}
+              className="w-full pop-card p-3 text-sm font-bold bg-card text-foreground hover:translate-y-[-2px] transition-transform"
+            >
+              🔄 Reconectar a uma sala (mesmo nome)
             </button>
           </div>
           <p className="text-xs text-center text-muted-foreground pt-4">
@@ -283,7 +336,55 @@ const Index = () => {
     );
   }
 
-  // playing
+  if (mode === "reconnect") {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-md space-y-5 pop-card-lg p-6 bg-card">
+          <button onClick={() => setMode("menu")} className="text-sm text-muted-foreground hover:underline">
+            ← voltar
+          </button>
+          <h2 className="text-2xl font-bold">🔄 Reconectar</h2>
+          <p className="text-sm text-muted-foreground">
+            Use isso se você foi desconectado, fechou o navegador ou está em outro dispositivo.
+            Digite o <strong>mesmo nome</strong> que você usou ao entrar na sala.
+          </p>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold uppercase tracking-wide">Seu nome (igual ao da sala)</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={20}
+              className="w-full px-4 py-3 border-2 border-foreground rounded-xl bg-background focus:outline-none focus:bg-accent/30"
+              placeholder="Ex: Ana"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold uppercase tracking-wide">Código da sala</label>
+            <input
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              maxLength={10}
+              className="w-full px-4 py-3 border-2 border-foreground rounded-xl bg-background font-mono-arcade text-xl tracking-widest text-center uppercase"
+              placeholder="XXXXX"
+            />
+          </div>
+
+          <button
+            onClick={handleReconnect}
+            className="w-full pop-card p-4 text-lg font-bold bg-primary text-primary-foreground"
+          >
+            Reconectar
+          </button>
+          <p className="text-[11px] text-muted-foreground text-center">
+            Seu segredo original e seu progresso são preservados — você não precisa redefini-los.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   if (!game || !session) {
     return <main className="min-h-screen flex items-center justify-center">Carregando…</main>;
   }
