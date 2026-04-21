@@ -1,0 +1,19 @@
+{
+  "name": "Cadeado — jogo em dupla",
+  "short_name": "Cadeado",
+  "description": "Adivinhe o segredo de 4 dígitos do adversário antes que ele descubra o seu.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fffbea",
+  "theme_color": "#fcd34d",
+  "icons": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
