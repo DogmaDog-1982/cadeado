@@ -336,7 +336,55 @@ const Index = () => {
     );
   }
 
-  // playing
+  if (mode === "reconnect") {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-md space-y-5 pop-card-lg p-6 bg-card">
+          <button onClick={() => setMode("menu")} className="text-sm text-muted-foreground hover:underline">
+            ← voltar
+          </button>
+          <h2 className="text-2xl font-bold">🔄 Reconectar</h2>
+          <p className="text-sm text-muted-foreground">
+            Use isso se você foi desconectado, fechou o navegador ou está em outro dispositivo.
+            Digite o <strong>mesmo nome</strong> que você usou ao entrar na sala.
+          </p>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold uppercase tracking-wide">Seu nome (igual ao da sala)</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={20}
+              className="w-full px-4 py-3 border-2 border-foreground rounded-xl bg-background focus:outline-none focus:bg-accent/30"
+              placeholder="Ex: Ana"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold uppercase tracking-wide">Código da sala</label>
+            <input
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              maxLength={10}
+              className="w-full px-4 py-3 border-2 border-foreground rounded-xl bg-background font-mono-arcade text-xl tracking-widest text-center uppercase"
+              placeholder="XXXXX"
+            />
+          </div>
+
+          <button
+            onClick={handleReconnect}
+            className="w-full pop-card p-4 text-lg font-bold bg-primary text-primary-foreground"
+          >
+            Reconectar
+          </button>
+          <p className="text-[11px] text-muted-foreground text-center">
+            Seu segredo original e seu progresso são preservados — você não precisa redefini-los.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   if (!game || !session) {
     return <main className="min-h-screen flex items-center justify-center">Carregando…</main>;
   }
