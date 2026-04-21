@@ -393,6 +393,11 @@ const Index = () => {
                 Última dica: {lastMyMiss.guess} → {lastMyMiss.hint === "higher" ? "MAIS ⬆" : "MENOS ⬇"}
               </div>
             )}
+            {isMyTurn && (
+              <div className="mt-3 text-xs text-muted-foreground">
+                👇 Toque em um número — o palpite é enviado na hora
+              </div>
+            )}
           </div>
           <GuessPad disabled={!isMyTurn} onGuess={handleGuess} />
         </div>
