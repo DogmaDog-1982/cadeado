@@ -380,27 +380,48 @@ const Index = () => {
       </AnimatePresence>
 
       {!finished && (
-        <div className={`pop-card p-4 space-y-3 ${shake ? "animate-shake" : ""}`}>
-          <div className="text-center">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              {isMyTurn ? "Sua vez — adivinhe a posição" : `Vez de ${oppName}`}
-            </div>
-            <div className="text-3xl font-mono-arcade font-bold mt-1">
-              {isMyTurn ? `#${myProgress + 1}` : "⏳"}
-            </div>
-            {isMyTurn && lastMyMiss && (
-              <div className="mt-2 inline-block px-3 py-1 rounded-md bg-accent border-2 border-foreground font-bold text-sm">
-                Última dica: {lastMyMiss.guess} → {lastMyMiss.hint === "higher" ? "MAIS ⬆" : "MENOS ⬇"}
+        <>
+          {isMyTurn ? (
+            <motion.div
+              key="my-turn"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className={`pop-card-lg p-4 space-y-4 bg-success/20 border-success ${shake ? "animate-shake" : ""}`}
+            >
+              <div className="text-center space-y-2">
+                <div className="inline-block px-4 py-1 rounded-full bg-success text-success-foreground font-bold text-sm uppercase tracking-wider">
+                  ✅ Sua vez!
+                </div>
+                <div className="text-lg font-bold">
+                  Adivinhe o dígito <span className="font-mono-arcade text-2xl">#{myProgress + 1}</span> do segredo de {oppName}
+                </div>
+                {lastMyMiss && (
+                  <div className="inline-block px-3 py-1 rounded-md bg-accent border-2 border-foreground font-bold text-sm">
+                    Última dica: você chutou {lastMyMiss.guess} → tente {lastMyMiss.hint === "higher" ? "MAIOR ⬆" : "MENOR ⬇"}
+                  </div>
+                )}
+                <div className="text-sm font-bold text-foreground pt-1">
+                  👇 TOQUE NUM NÚMERO PARA ENVIAR
+                </div>
               </div>
-            )}
-            {isMyTurn && (
-              <div className="mt-3 text-xs text-muted-foreground">
-                👇 Toque em um número — o palpite é enviado na hora
+              <GuessPad disabled={false} onGuess={handleGuess} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="wait-turn"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="pop-card-lg p-8 text-center bg-muted/40 space-y-3"
+            >
+              <div className="text-5xl">⏳</div>
+              <div className="text-xl font-bold uppercase tracking-wide">Aguarde…</div>
+              <div className="text-sm text-muted-foreground">
+                <span className="font-bold text-foreground">{oppName}</span> está jogando.
+                <br />Quando errar, é a sua vez.
               </div>
-            )}
-          </div>
-          <GuessPad disabled={!isMyTurn} onGuess={handleGuess} />
-        </div>
+            </motion.div>
+          )}
+        </>
       )}
 
       <div className="grid grid-cols-1 gap-3 pop-card p-4">
