@@ -237,6 +237,20 @@ const Index = () => {
             </motion.h1>
             <p className="text-muted-foreground">Adivinhe o segredo do seu adversário antes que ele descubra o seu.</p>
           </header>
+          {session && (
+            <div className="pop-card p-4 bg-success/20 border-success space-y-2">
+              <div className="text-sm font-bold">🎮 Você tem uma partida em andamento</div>
+              <div className="text-xs text-muted-foreground">
+                Como <strong>{session.name}</strong> (Jogador {session.player})
+              </div>
+              <button
+                onClick={resumeSavedSession}
+                className="w-full pop-card p-3 font-bold bg-success text-success-foreground"
+              >
+                ▶ Voltar para a partida
+              </button>
+            </div>
+          )}
           <div className="space-y-3">
             <button
               onClick={() => setMode("create")}
@@ -249,6 +263,12 @@ const Index = () => {
               className="w-full pop-card p-5 text-xl font-bold bg-secondary text-secondary-foreground hover:translate-y-[-2px] transition-transform"
             >
               Entrar com código
+            </button>
+            <button
+              onClick={() => setMode("reconnect")}
+              className="w-full pop-card p-3 text-sm font-bold bg-card text-foreground hover:translate-y-[-2px] transition-transform"
+            >
+              🔄 Reconectar a uma sala (mesmo nome)
             </button>
           </div>
           <p className="text-xs text-center text-muted-foreground pt-4">
