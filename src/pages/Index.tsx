@@ -167,7 +167,7 @@ const Index = () => {
       }
       return;
     }
-    saveSession({ gameId: data as string, player: 2, name: name.trim() });
+    saveSession({ gameId: data as string, player: 2, name: name.trim(), secret: [...secret] });
     setMode("playing");
     loadGame(data as string);
   }
