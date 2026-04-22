@@ -143,7 +143,7 @@ const Index = () => {
       return toast.error(error?.message ?? "Erro ao criar partida");
     }
     const row = data[0] as { id: string; code: string };
-    saveSession({ gameId: row.id, player: 1, name: name.trim() });
+    saveSession({ gameId: row.id, player: 1, name: name.trim(), secret: [...secret] });
     setMode("playing");
     loadGame(row.id);
   }
