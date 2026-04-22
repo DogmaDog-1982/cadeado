@@ -25,9 +25,11 @@ export type Database = {
           player1_guesses: Json
           player1_name: string | null
           player1_secret: number[]
+          player1_token: string | null
           player2_guesses: Json
           player2_name: string | null
           player2_secret: number[]
+          player2_token: string | null
           status: string
           updated_at: string
           winner: number | null
@@ -42,9 +44,11 @@ export type Database = {
           player1_guesses?: Json
           player1_name?: string | null
           player1_secret: number[]
+          player1_token?: string | null
           player2_guesses?: Json
           player2_name?: string | null
           player2_secret: number[]
+          player2_token?: string | null
           status?: string
           updated_at?: string
           winner?: number | null
@@ -59,9 +63,11 @@ export type Database = {
           player1_guesses?: Json
           player1_name?: string | null
           player1_secret?: number[]
+          player1_token?: string | null
           player2_guesses?: Json
           player2_name?: string | null
           player2_secret?: number[]
+          player2_token?: string | null
           status?: string
           updated_at?: string
           winner?: number | null
@@ -125,14 +131,23 @@ export type Database = {
         Returns: {
           code: string
           id: string
+          token: string
         }[]
       }
       join_game: {
         Args: { _code: string; _name: string; _secret: number[] }
-        Returns: string
+        Returns: {
+          game_id: string
+          token: string
+        }[]
       }
       make_guess: {
-        Args: { _game_id: string; _guess: number; _player: number }
+        Args: {
+          _game_id: string
+          _guess: number
+          _player: number
+          _token: string
+        }
         Returns: Json
       }
       reconnect_game: {
@@ -140,6 +155,8 @@ export type Database = {
         Returns: {
           game_id: string
           player: number
+          secret: number[]
+          token: string
         }[]
       }
     }
