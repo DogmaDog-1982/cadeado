@@ -32,6 +32,7 @@ interface Session {
   gameId: string;
   player: 1 | 2;
   name: string;
+  secret?: number[];
 }
 
 const Index = () => {
@@ -142,7 +143,7 @@ const Index = () => {
       return toast.error(error?.message ?? "Erro ao criar partida");
     }
     const row = data[0] as { id: string; code: string };
-    saveSession({ gameId: row.id, player: 1, name: name.trim() });
+    saveSession({ gameId: row.id, player: 1, name: name.trim(), secret: [...secret] });
     setMode("playing");
     loadGame(row.id);
   }
@@ -166,7 +167,7 @@ const Index = () => {
       }
       return;
     }
-    saveSession({ gameId: data as string, player: 2, name: name.trim() });
+    saveSession({ gameId: data as string, player: 2, name: name.trim(), secret: [...secret] });
     setMode("playing");
     loadGame(data as string);
   }
@@ -183,7 +184,19 @@ const Index = () => {
       return toast.error(error?.message ?? "Não foi possível reconectar. Confira código e nome.");
     }
     const row = data[0] as { game_id: string; player: number };
-    saveSession({ gameId: row.game_id, player: row.player as 1 | 2, name: name.trim() });
+    // fetch own secret to display during the game
+    const { data: gameRow } = await supabase
+      .from("games")
+      .select("player1_secret,player2_secret")
+      .eq("id", row.game_id)
+      .maybeSingle();
+    const mySecret = row.player === 1 ? gameRow?.player1_secret : gameRow?.player2_secret;
+    saveSession({
+      gameId: row.game_id,
+      player: row.player as 1 | 2,
+      name: name.trim(),
+      secret: mySecret ?? undefined,
+    });
     setMode("playing");
     loadGame(row.game_id);
     toast.success(`Reconectado como Jogador ${row.player}!`);
@@ -474,6 +487,35 @@ const Index = () => {
           color="secondary"
         />
       </div>
+
+      {session.secret && session.secret.length === 4 && (
+        <div className="pop-card p-3 bg-accent/40">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              🔑 Seu segredo
+            </span>
+            <div className="flex gap-1.5">
+              {session.secret.map((d, i) => {
+                const cracked = i < oppProgress;
+                return (
+                  <div
+                    key={i}
+                    className={`w-9 h-10 rounded-md border-2 border-foreground flex items-center justify-center font-mono-arcade font-bold text-lg ${
+                      cracked ? "bg-destructive/30 line-through" : "bg-card"
+                    }`}
+                    style={{ boxShadow: "var(--shadow-pop-sm)" }}
+                  >
+                    {d}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2 text-center">
+            Visível só para você. Dígitos riscados já foram descobertos pelo adversário.
+          </p>
+        </div>
+      )}
 
       <AnimatePresence>
         {finished && (
