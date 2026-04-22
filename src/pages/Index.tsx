@@ -488,6 +488,35 @@ const Index = () => {
         />
       </div>
 
+      {session.secret && session.secret.length === 4 && (
+        <div className="pop-card p-3 bg-accent/40">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              🔑 Seu segredo
+            </span>
+            <div className="flex gap-1.5">
+              {session.secret.map((d, i) => {
+                const cracked = i < oppProgress;
+                return (
+                  <div
+                    key={i}
+                    className={`w-9 h-10 rounded-md border-2 border-foreground flex items-center justify-center font-mono-arcade font-bold text-lg ${
+                      cracked ? "bg-destructive/30 line-through" : "bg-card"
+                    }`}
+                    style={{ boxShadow: "var(--shadow-pop-sm)" }}
+                  >
+                    {d}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2 text-center">
+            Visível só para você. Dígitos riscados já foram descobertos pelo adversário.
+          </p>
+        </div>
+      )}
+
       <AnimatePresence>
         {finished && (
           <motion.div
