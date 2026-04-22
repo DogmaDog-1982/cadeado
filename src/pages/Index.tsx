@@ -184,7 +184,19 @@ const Index = () => {
       return toast.error(error?.message ?? "Não foi possível reconectar. Confira código e nome.");
     }
     const row = data[0] as { game_id: string; player: number };
-    saveSession({ gameId: row.game_id, player: row.player as 1 | 2, name: name.trim() });
+    // fetch own secret to display during the game
+    const { data: gameRow } = await supabase
+      .from("games")
+      .select("player1_secret,player2_secret")
+      .eq("id", row.game_id)
+      .maybeSingle();
+    const mySecret = row.player === 1 ? gameRow?.player1_secret : gameRow?.player2_secret;
+    saveSession({
+      gameId: row.game_id,
+      player: row.player as 1 | 2,
+      name: name.trim(),
+      secret: mySecret ?? undefined,
+    });
     setMode("playing");
     loadGame(row.game_id);
     toast.success(`Reconectado como Jogador ${row.player}!`);
