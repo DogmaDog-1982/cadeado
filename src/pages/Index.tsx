@@ -33,6 +33,7 @@ interface Session {
   player: 1 | 2;
   name: string;
   secret?: number[];
+  token?: string;
 }
 
 const Index = () => {
@@ -142,8 +143,8 @@ const Index = () => {
       console.error("create_game error", error);
       return toast.error(error?.message ?? "Erro ao criar partida");
     }
-    const row = data[0] as { id: string; code: string };
-    saveSession({ gameId: row.id, player: 1, name: name.trim(), secret: [...secret] });
+    const row = data[0] as { id: string; code: string; token: string };
+    saveSession({ gameId: row.id, player: 1, name: name.trim(), secret: [...secret], token: row.token });
     setMode("playing");
     loadGame(row.id);
   }
@@ -158,7 +159,7 @@ const Index = () => {
       _name: name.trim(),
       _secret: secret,
     });
-    if (error || !data) {
+    if (error || !data || !(data as any[])[0]) {
       // If room is full, suggest reconnect
       if (error?.message?.includes("game full")) {
         toast.error("Sala cheia. Se você já estava nela, use 'Reconectar'.");
@@ -167,9 +168,10 @@ const Index = () => {
       }
       return;
     }
-    saveSession({ gameId: data as string, player: 2, name: name.trim(), secret: [...secret] });
+    const row = (data as any[])[0] as { game_id: string; token: string };
+    saveSession({ gameId: row.game_id, player: 2, name: name.trim(), secret: [...secret], token: row.token });
     setMode("playing");
-    loadGame(data as string);
+    loadGame(row.game_id);
   }
 
   async function handleReconnect() {
@@ -183,19 +185,13 @@ const Index = () => {
     if (error || !data || !data[0]) {
       return toast.error(error?.message ?? "Não foi possível reconectar. Confira código e nome.");
     }
-    const row = data[0] as { game_id: string; player: number };
-    // fetch own secret to display during the game
-    const { data: gameRow } = await supabase
-      .from("games")
-      .select("player1_secret,player2_secret")
-      .eq("id", row.game_id)
-      .maybeSingle();
-    const mySecret = row.player === 1 ? gameRow?.player1_secret : gameRow?.player2_secret;
+    const row = data[0] as { game_id: string; player: number; token: string; secret: number[] };
     saveSession({
       gameId: row.game_id,
       player: row.player as 1 | 2,
       name: name.trim(),
-      secret: mySecret ?? undefined,
+      secret: row.secret ?? undefined,
+      token: row.token,
     });
     setMode("playing");
     loadGame(row.game_id);
@@ -212,10 +208,14 @@ const Index = () => {
   async function handleGuess(n: number) {
     if (!session || !game) return;
     sfx.click();
+    if (!session.token) {
+      return toast.error("Sessão inválida. Reconecte-se à sala.");
+    }
     const { data, error } = await supabase.rpc("make_guess", {
       _game_id: session.gameId,
       _player: session.player,
       _guess: n,
+      _token: session.token,
     });
     if (error) {
       sfx.miss();
