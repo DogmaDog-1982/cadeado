@@ -32,6 +32,7 @@ interface Session {
   gameId: string;
   player: 1 | 2;
   name: string;
+  secret?: number[];
 }
 
 const Index = () => {
