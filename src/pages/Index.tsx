@@ -5,6 +5,14 @@ import { GuessPad } from "@/components/GuessPad";
 import { LockDisplay } from "@/components/LockDisplay";
 import { GuessHistory } from "@/components/GuessHistory";
 import { randomSecret, type Guess } from "@/lib/game-utils";
+import {
+  type BotState,
+  type BotDifficulty,
+  createBotGame,
+  playerGuess as botPlayerGuess,
+  pickBotGuess,
+  botGuess as botMakeGuess,
+} from "@/lib/bot-game";
 import { sfx, toggleMute } from "@/lib/sfx";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,7 +32,7 @@ type GameRow = {
   status: string;
 };
 
-type Mode = "menu" | "create" | "join" | "reconnect" | "playing";
+type Mode = "menu" | "create" | "join" | "reconnect" | "playing" | "bot-setup" | "bot-playing";
 
 const STORAGE_KEY = "cadeado-session";
 
