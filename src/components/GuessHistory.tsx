@@ -1,13 +1,17 @@
+import { forwardRef } from "react";
 import type { Guess } from "@/lib/game-utils";
 
-export function GuessHistory({ guesses, title }: { guesses: Guess[]; title: string }) {
+export const GuessHistory = forwardRef<HTMLDivElement, { guesses: Guess[]; title: string }>(function GuessHistory(
+  { guesses, title },
+  ref,
+) {
   if (guesses.length === 0) {
     return (
-      <div className="text-center text-sm text-muted-foreground py-2">Nenhum palpite ainda</div>
+      <div ref={ref} className="text-center text-sm text-muted-foreground py-2">Nenhum palpite ainda</div>
     );
   }
   return (
-    <div>
+    <div ref={ref}>
       <h3 className="text-xs uppercase tracking-wider font-bold mb-2 text-muted-foreground">{title}</h3>
       <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
         {guesses.map((g, i) => {
@@ -28,4 +32,4 @@ export function GuessHistory({ guesses, title }: { guesses: Guess[]; title: stri
       </div>
     </div>
   );
-}
+});
