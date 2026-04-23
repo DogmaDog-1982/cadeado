@@ -91,17 +91,6 @@ const Index = () => {
     };
   }, [session?.gameId]);
 
-  // Polling fallback while we are waiting for the opponent or while playing,
-  // in case realtime momentarily drops a notification.
-  useEffect(() => {
-    if (!session) return;
-    if (game?.status === "finished") return;
-    const interval = setInterval(() => {
-      loadGame(session.gameId);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [session?.gameId, game?.status]);
-
   // play win/lose sound when game finishes
   useEffect(() => {
     if (!game || !session) return;
