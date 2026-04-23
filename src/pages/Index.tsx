@@ -349,6 +349,9 @@ const Index = () => {
             </div>
           )}
           <div className="space-y-3">
+            <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground text-center">
+              👥 Multijogador
+            </div>
             <button
               onClick={() => setMode("create")}
               className="w-full pop-card p-5 text-xl font-bold bg-primary text-primary-foreground hover:translate-y-[-2px] transition-transform"
@@ -366,6 +369,19 @@ const Index = () => {
               className="w-full pop-card p-3 text-sm font-bold bg-card text-foreground hover:translate-y-[-2px] transition-transform"
             >
               🔄 Reconectar a uma sala (mesmo nome)
+            </button>
+
+            <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground text-center pt-3">
+              🤖 Solo
+            </div>
+            <button
+              onClick={() => {
+                setSecret([-1, -1, -1, -1]);
+                setMode("bot-setup");
+              }}
+              className="w-full pop-card p-5 text-xl font-bold bg-accent text-accent-foreground hover:translate-y-[-2px] transition-transform"
+            >
+              Jogar contra o robô
             </button>
           </div>
           <p className="text-xs text-center text-muted-foreground pt-4">
