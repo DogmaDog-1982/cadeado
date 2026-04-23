@@ -5,6 +5,14 @@ import { GuessPad } from "@/components/GuessPad";
 import { LockDisplay } from "@/components/LockDisplay";
 import { GuessHistory } from "@/components/GuessHistory";
 import { randomSecret, type Guess } from "@/lib/game-utils";
+import {
+  type BotState,
+  type BotDifficulty,
+  createBotGame,
+  playerGuess as botPlayerGuess,
+  pickBotGuess,
+  botGuess as botMakeGuess,
+} from "@/lib/bot-game";
 import { sfx, toggleMute } from "@/lib/sfx";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,7 +32,7 @@ type GameRow = {
   status: string;
 };
 
-type Mode = "menu" | "create" | "join" | "reconnect" | "playing";
+type Mode = "menu" | "create" | "join" | "reconnect" | "playing" | "bot-setup" | "bot-playing";
 
 const STORAGE_KEY = "cadeado-session";
 
@@ -46,6 +54,12 @@ const Index = () => {
   const [shake, setShake] = useState(false);
   const [muted, setMuted] = useState(sfx.isMuted());
   const [finishedSoundPlayed, setFinishedSoundPlayed] = useState(false);
+
+  // ===== BOT MODE state (totally local, no backend) =====
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>("easy");
+  const [botState, setBotState] = useState<BotState | null>(null);
+  const [botShake, setBotShake] = useState(false);
+  const [botFinishedSoundPlayed, setBotFinishedSoundPlayed] = useState(false);
 
   // restore session
   useEffect(() => {
@@ -94,6 +108,76 @@ const Index = () => {
   useEffect(() => {
     sfx.setMuted(muted);
   }, [muted]);
+
+  // ===== BOT effects =====
+  // Auto-play bot turn after a short delay
+  useEffect(() => {
+    if (!botState) return;
+    if (botState.status !== "playing") return;
+    if (botState.currentTurn !== 2) return;
+    const t = setTimeout(() => {
+      const guess = pickBotGuess(botState);
+      const { state: next, correct, hint } = botMakeGuess(botState, guess);
+      sfx.click();
+      if (correct) {
+        sfx.correct();
+        toast(`🤖 Robô acertou o dígito #${botState.botProgress + 1}!`);
+      } else {
+        if (hint === "higher") sfx.hintHigher();
+        else sfx.hintLower();
+        toast(`🤖 Robô chutou ${guess} → errou`);
+      }
+      setBotState(next);
+    }, 900);
+    return () => clearTimeout(t);
+  }, [botState]);
+
+  // Win/lose sound for bot game
+  useEffect(() => {
+    if (!botState) return;
+    if (botState.status === "finished" && !botFinishedSoundPlayed) {
+      if (botState.winner === 1) sfx.win();
+      else sfx.lose();
+      setBotFinishedSoundPlayed(true);
+    }
+    if (botState.status !== "finished" && botFinishedSoundPlayed) {
+      setBotFinishedSoundPlayed(false);
+    }
+  }, [botState?.status, botState?.winner, botFinishedSoundPlayed]);
+
+  function startBotGame() {
+    if (secret.some((d) => d < 0)) return toast.error("Defina os 4 dígitos do seu segredo");
+    sfx.click();
+    const s = createBotGame(secret, botDifficulty);
+    setBotState(s);
+    setMode("bot-playing");
+    toast.success(s.startedBy === 1 ? "Você começa!" : "Robô começa!");
+  }
+
+  function leaveBotGame() {
+    setBotState(null);
+    setMode("menu");
+    setName("");
+    setSecret([-1, -1, -1, -1]);
+  }
+
+  function handleBotPlayerGuess(n: number) {
+    if (!botState) return;
+    sfx.click();
+    const { state: next, correct, hint } = botPlayerGuess(botState, n);
+    if (!correct) {
+      setBotShake(true);
+      setTimeout(() => setBotShake(false), 400);
+      if (hint === "higher") sfx.hintHigher();
+      else sfx.hintLower();
+      toast(`Errou! Dica: ${hint === "higher" ? "MAIS ⬆" : "MENOS ⬇"}`);
+    } else {
+      sfx.correct();
+      toast.success("Acertou! Continue 🔥");
+    }
+    setBotState(next);
+  }
+
 
   async function loadGame(id: string) {
     const { data, error } = await supabase
@@ -265,6 +349,9 @@ const Index = () => {
             </div>
           )}
           <div className="space-y-3">
+            <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground text-center">
+              👥 Multijogador
+            </div>
             <button
               onClick={() => setMode("create")}
               className="w-full pop-card p-5 text-xl font-bold bg-primary text-primary-foreground hover:translate-y-[-2px] transition-transform"
@@ -282,6 +369,19 @@ const Index = () => {
               className="w-full pop-card p-3 text-sm font-bold bg-card text-foreground hover:translate-y-[-2px] transition-transform"
             >
               🔄 Reconectar a uma sala (mesmo nome)
+            </button>
+
+            <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground text-center pt-3">
+              🤖 Solo
+            </div>
+            <button
+              onClick={() => {
+                setSecret([-1, -1, -1, -1]);
+                setMode("bot-setup");
+              }}
+              className="w-full pop-card p-5 text-xl font-bold bg-accent text-accent-foreground hover:translate-y-[-2px] transition-transform"
+            >
+              Jogar contra o robô
             </button>
           </div>
           <p className="text-xs text-center text-muted-foreground pt-4">
@@ -393,6 +493,218 @@ const Index = () => {
           <p className="text-[11px] text-muted-foreground text-center">
             Seu segredo original e seu progresso são preservados — você não precisa redefini-los.
           </p>
+        </div>
+      </main>
+    );
+  }
+
+  // ===== BOT SETUP =====
+  if (mode === "bot-setup") {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-md space-y-5 pop-card-lg p-6 bg-card">
+          <button onClick={() => setMode("menu")} className="text-sm text-muted-foreground hover:underline">
+            ← voltar
+          </button>
+          <h2 className="text-2xl font-bold">🤖 Jogar contra o robô</h2>
+          <p className="text-sm text-muted-foreground">
+            Partida solo, totalmente offline. Defina seu segredo e a dificuldade.
+          </p>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold uppercase tracking-wide">Dificuldade do robô</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setBotDifficulty("easy")}
+                className={`pop-card p-3 font-bold text-sm transition-transform ${
+                  botDifficulty === "easy"
+                    ? "bg-primary text-primary-foreground scale-105"
+                    : "bg-card text-foreground"
+                }`}
+              >
+                😄 Fácil
+                <div className="text-[10px] font-normal opacity-80 mt-1">Chuta aleatório</div>
+              </button>
+              <button
+                onClick={() => setBotDifficulty("hard")}
+                className={`pop-card p-3 font-bold text-sm transition-transform ${
+                  botDifficulty === "hard"
+                    ? "bg-primary text-primary-foreground scale-105"
+                    : "bg-card text-foreground"
+                }`}
+              >
+                🧠 Difícil
+                <div className="text-[10px] font-normal opacity-80 mt-1">Usa as dicas</div>
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-bold uppercase tracking-wide">Seu segredo (4 dígitos)</label>
+            <SecretInput value={secret} onChange={setSecret} />
+            <button
+              type="button"
+              onClick={() => setSecret(randomSecret())}
+              className="text-xs text-muted-foreground hover:underline mx-auto block"
+            >
+              🎲 sortear pra mim
+            </button>
+          </div>
+
+          <button
+            onClick={startBotGame}
+            className="w-full pop-card p-4 text-lg font-bold bg-primary text-primary-foreground"
+          >
+            Começar partida
+          </button>
+          <p className="text-[11px] text-muted-foreground text-center">
+            Quem começa a primeira jogada é sorteado aleatoriamente.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  // ===== BOT PLAYING =====
+  if (mode === "bot-playing" && botState) {
+    const myProgress = botState.playerProgress;
+    const oppProgress = botState.botProgress;
+    const myGuesses = botState.playerGuesses;
+    const oppGuesses = botState.botGuesses;
+    const isMyTurn = botState.currentTurn === 1 && botState.status === "playing";
+    const finished = botState.status === "finished";
+    const iWon = botState.winner === 1;
+    const lastMyMiss = [...myGuesses].reverse().find((g) => g.hint !== "correct" && g.position === myProgress);
+    const oppLabel = `Robô (${botState.difficulty === "easy" ? "Fácil" : "Difícil"})`;
+
+    return (
+      <main className="min-h-screen p-4 max-w-2xl mx-auto space-y-4">
+        <header className="flex items-center justify-between">
+          <div>
+            <div className="text-xs text-muted-foreground">Modo</div>
+            <div className="font-mono-arcade font-bold tracking-widest">🤖 SOLO</div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMuted(toggleMute())}
+              className="p-2 rounded-lg border-2 border-foreground bg-card"
+              style={{ boxShadow: "var(--shadow-pop-sm)" }}
+              aria-label={muted ? "Ativar som" : "Silenciar"}
+            >
+              {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </button>
+            <button onClick={leaveBotGame} className="text-xs text-muted-foreground hover:underline">sair</button>
+          </div>
+        </header>
+
+        <div className="grid grid-cols-2 gap-3">
+          <LockDisplay
+            label={`${oppLabel} (alvo)`}
+            positionsRevealed={myProgress}
+            color="primary"
+            highlight={isMyTurn}
+          />
+          <LockDisplay
+            label="Você"
+            positionsRevealed={oppProgress}
+            color="secondary"
+          />
+        </div>
+
+        <div className="pop-card p-3 bg-accent/40">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              🔑 Seu segredo
+            </span>
+            <div className="flex gap-1.5">
+              {botState.playerSecret.map((d, i) => {
+                const cracked = i < oppProgress;
+                return (
+                  <div
+                    key={i}
+                    className={`w-9 h-10 rounded-md border-2 border-foreground flex items-center justify-center font-mono-arcade font-bold text-lg ${
+                      cracked ? "bg-destructive/30 line-through" : "bg-card"
+                    }`}
+                    style={{ boxShadow: "var(--shadow-pop-sm)" }}
+                  >
+                    {d}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2 text-center">
+            Visível só para você. Dígitos riscados já foram descobertos pelo robô.
+          </p>
+        </div>
+
+        <AnimatePresence>
+          {finished && (
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className={`pop-card-lg p-6 text-center ${iWon ? "bg-success text-success-foreground" : "bg-destructive text-destructive-foreground"}`}
+            >
+              <div className="text-4xl mb-2">{iWon ? "🏆" : "💔"}</div>
+              <div className="text-2xl font-bold">{iWon ? "Você venceu o robô!" : "O robô venceu"}</div>
+              {!iWon && (
+                <div className="text-xs mt-2 opacity-90">
+                  Segredo do robô era: <span className="font-mono-arcade font-bold">{botState.botSecret.join(" ")}</span>
+                </div>
+              )}
+              <button onClick={leaveBotGame} className="mt-4 pop-card px-5 py-2 bg-card text-foreground font-bold">
+                Jogar de novo
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {!finished && (
+          <>
+            {isMyTurn ? (
+              <motion.div
+                key="my-turn-bot"
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className={`pop-card-lg p-4 space-y-4 bg-success/20 border-success ${botShake ? "animate-shake" : ""}`}
+              >
+                <div className="text-center space-y-2">
+                  <div className="inline-block px-4 py-1 rounded-full bg-success text-success-foreground font-bold text-sm uppercase tracking-wider">
+                    ✅ Sua vez!
+                  </div>
+                  <div className="text-lg font-bold">
+                    Adivinhe o dígito <span className="font-mono-arcade text-2xl">#{myProgress + 1}</span> do segredo do robô
+                  </div>
+                  {lastMyMiss && (
+                    <div className="inline-block px-3 py-1 rounded-md bg-accent border-2 border-foreground font-bold text-sm">
+                      Última dica: você chutou {lastMyMiss.guess} → tente {lastMyMiss.hint === "higher" ? "MAIOR ⬆" : "MENOR ⬇"}
+                    </div>
+                  )}
+                </div>
+                <GuessPad disabled={false} onGuess={handleBotPlayerGuess} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="wait-bot"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="pop-card-lg p-8 text-center bg-muted/40 space-y-3"
+              >
+                <div className="text-5xl">🤖</div>
+                <div className="text-xl font-bold uppercase tracking-wide">Robô pensando…</div>
+                <div className="text-sm text-muted-foreground">
+                  Quando ele errar, é a sua vez.
+                </div>
+              </motion.div>
+            )}
+          </>
+        )}
+
+        <div className="grid grid-cols-1 gap-3 pop-card p-4">
+          <GuessHistory guesses={myGuesses} title="Seus palpites" />
+          <div className="border-t-2 border-dashed border-foreground/30 pt-3">
+            <GuessHistory guesses={oppGuesses} title={`Palpites do ${oppLabel}`} />
+          </div>
         </div>
       </main>
     );
