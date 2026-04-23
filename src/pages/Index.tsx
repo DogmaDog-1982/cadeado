@@ -55,6 +55,12 @@ const Index = () => {
   const [muted, setMuted] = useState(sfx.isMuted());
   const [finishedSoundPlayed, setFinishedSoundPlayed] = useState(false);
 
+  // ===== BOT MODE state (totally local, no backend) =====
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>("easy");
+  const [botState, setBotState] = useState<BotState | null>(null);
+  const [botShake, setBotShake] = useState(false);
+  const [botFinishedSoundPlayed, setBotFinishedSoundPlayed] = useState(false);
+
   // restore session
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
