@@ -44,6 +44,22 @@ interface Session {
   token?: string;
 }
 
+function toGameRow(row: any): GameRow {
+  return {
+    id: row.id,
+    code: row.code,
+    player1_name: row.player1_name,
+    player2_name: row.player2_name,
+    player1_guesses: row.player1_guesses ?? [],
+    player2_guesses: row.player2_guesses ?? [],
+    current_position_for_p1: row.current_position_for_p1 ?? 0,
+    current_position_for_p2: row.current_position_for_p2 ?? 0,
+    current_turn: row.current_turn ?? 1,
+    winner: row.winner ?? null,
+    status: row.status,
+  };
+}
+
 const Index = () => {
   const [mode, setMode] = useState<Mode>("menu");
   const [name, setName] = useState("");
@@ -83,9 +99,20 @@ const Index = () => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "games", filter: `id=eq.${session.gameId}` },
-        () => loadGame(session.gameId)
+        (payload) => {
+          if (payload.eventType === "DELETE") return;
+          if (payload.new) {
+            setGame(toGameRow(payload.new));
+            return;
+          }
+          void loadGame(session.gameId);
+        }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          void loadGame(session.gameId);
+        }
+      });
     return () => {
       supabase.removeChannel(channel);
     };
@@ -197,7 +224,7 @@ const Index = () => {
       setMode("menu");
       return;
     }
-    setGame(data as any);
+    setGame(toGameRow(data));
   }
 
   function saveSession(s: Session) {
