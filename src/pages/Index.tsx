@@ -710,6 +710,7 @@ const Index = () => {
     );
   }
 
+  if (!game || !session) {
     return <main className="min-h-screen flex items-center justify-center">Carregando…</main>;
   }
 
