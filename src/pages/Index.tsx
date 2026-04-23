@@ -109,6 +109,76 @@ const Index = () => {
     sfx.setMuted(muted);
   }, [muted]);
 
+  // ===== BOT effects =====
+  // Auto-play bot turn after a short delay
+  useEffect(() => {
+    if (!botState) return;
+    if (botState.status !== "playing") return;
+    if (botState.currentTurn !== 2) return;
+    const t = setTimeout(() => {
+      const guess = pickBotGuess(botState);
+      const { state: next, correct, hint } = botMakeGuess(botState, guess);
+      sfx.click();
+      if (correct) {
+        sfx.correct();
+        toast(`🤖 Robô acertou o dígito #${botState.botProgress + 1}!`);
+      } else {
+        if (hint === "higher") sfx.hintHigher();
+        else sfx.hintLower();
+        toast(`🤖 Robô chutou ${guess} → errou`);
+      }
+      setBotState(next);
+    }, 900);
+    return () => clearTimeout(t);
+  }, [botState]);
+
+  // Win/lose sound for bot game
+  useEffect(() => {
+    if (!botState) return;
+    if (botState.status === "finished" && !botFinishedSoundPlayed) {
+      if (botState.winner === 1) sfx.win();
+      else sfx.lose();
+      setBotFinishedSoundPlayed(true);
+    }
+    if (botState.status !== "finished" && botFinishedSoundPlayed) {
+      setBotFinishedSoundPlayed(false);
+    }
+  }, [botState?.status, botState?.winner, botFinishedSoundPlayed]);
+
+  function startBotGame() {
+    if (secret.some((d) => d < 0)) return toast.error("Defina os 4 dígitos do seu segredo");
+    sfx.click();
+    const s = createBotGame(secret, botDifficulty);
+    setBotState(s);
+    setMode("bot-playing");
+    toast.success(s.startedBy === 1 ? "Você começa!" : "Robô começa!");
+  }
+
+  function leaveBotGame() {
+    setBotState(null);
+    setMode("menu");
+    setName("");
+    setSecret([-1, -1, -1, -1]);
+  }
+
+  function handleBotPlayerGuess(n: number) {
+    if (!botState) return;
+    sfx.click();
+    const { state: next, correct, hint } = botPlayerGuess(botState, n);
+    if (!correct) {
+      setBotShake(true);
+      setTimeout(() => setBotShake(false), 400);
+      if (hint === "higher") sfx.hintHigher();
+      else sfx.hintLower();
+      toast(`Errou! Dica: ${hint === "higher" ? "MAIS ⬆" : "MENOS ⬇"}`);
+    } else {
+      sfx.correct();
+      toast.success("Acertou! Continue 🔥");
+    }
+    setBotState(next);
+  }
+
+
   async function loadGame(id: string) {
     const { data, error } = await supabase
       .from("games_public" as any)
