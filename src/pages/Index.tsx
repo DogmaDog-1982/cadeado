@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Capacitor } from "@capacitor/core";
 import { SecretInput } from "@/components/SecretInput";
 import { GuessPad } from "@/components/GuessPad";
 import { LockDisplay } from "@/components/LockDisplay";
@@ -36,7 +35,6 @@ type GameRow = {
 type Mode = "menu" | "create" | "join" | "reconnect" | "playing" | "bot-setup" | "bot-playing";
 
 const STORAGE_KEY = "cadeado-session";
-const IS_NATIVE_APP = Capacitor.isNativePlatform();
 
 interface Session {
   gameId: string;
@@ -72,7 +70,9 @@ const Index = () => {
   const [shake, setShake] = useState(false);
   const [muted, setMuted] = useState(sfx.isMuted());
   const [finishedSoundPlayed, setFinishedSoundPlayed] = useState(false);
+  const [isConnectingToRoom, setIsConnectingToRoom] = useState(false);
   const lastSyncRef = useRef(0);
+  const syncInFlightRef = useRef(false);
 
   // ===== BOT MODE state (totally local, no backend) =====
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>("easy");
@@ -82,16 +82,34 @@ const Index = () => {
 
   // restore session
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const s: Session = JSON.parse(raw);
-      setSession(s);
-      setMode("playing");
-      loadGame(s.gameId);
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
-    }
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+
+      try {
+        const savedSession: Session = JSON.parse(raw);
+        setIsConnectingToRoom(true);
+        const restoredGame = await loadGame(savedSession.gameId);
+        if (!restoredGame || cancelled) return;
+
+        saveSession(savedSession);
+        setMode("playing");
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
+      } finally {
+        if (!cancelled) {
+          setIsConnectingToRoom(false);
+        }
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // realtime subscribe
@@ -99,9 +117,18 @@ const Index = () => {
     if (!session) return;
 
     let disposed = false;
+    const pollIntervalMs = game?.status === "waiting" ? 400 : 800;
+    const staleAfterMs = game?.status === "waiting" ? 250 : 700;
+
     const syncGame = async () => {
-      lastSyncRef.current = Date.now();
-      await loadGame(session.gameId);
+      if (syncInFlightRef.current) return;
+
+      syncInFlightRef.current = true;
+      try {
+        await loadGame(session.gameId);
+      } finally {
+        syncInFlightRef.current = false;
+      }
     };
 
     const channel = supabase
@@ -120,6 +147,8 @@ const Index = () => {
         }
       )
       .subscribe((status) => {
+        if (disposed) return;
+
         if (status === "SUBSCRIBED") {
           void syncGame();
           return;
@@ -135,14 +164,12 @@ const Index = () => {
       void syncGame();
     };
 
-    const nativeFallbackInterval = IS_NATIVE_APP
-      ? window.setInterval(() => {
-          if (disposed) return;
-          if (document.visibilityState !== "visible") return;
-          if (Date.now() - lastSyncRef.current < 1500) return;
-          void syncGame();
-        }, 1000)
-      : null;
+    const safetyPollInterval = window.setInterval(() => {
+      if (disposed) return;
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastSyncRef.current < staleAfterMs) return;
+      void syncGame();
+    }, pollIntervalMs);
 
     window.addEventListener("focus", handleResumeSync);
     window.addEventListener("online", handleResumeSync);
@@ -153,12 +180,10 @@ const Index = () => {
       window.removeEventListener("focus", handleResumeSync);
       window.removeEventListener("online", handleResumeSync);
       document.removeEventListener("visibilitychange", handleResumeSync);
-      if (nativeFallbackInterval) {
-        window.clearInterval(nativeFallbackInterval);
-      }
+      window.clearInterval(safetyPollInterval);
       supabase.removeChannel(channel);
     };
-  }, [session?.gameId]);
+  }, [session?.gameId, game?.status]);
 
   // play win/lose sound when game finishes
   useEffect(() => {
