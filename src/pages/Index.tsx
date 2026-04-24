@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Capacitor } from "@capacitor/core";
 import { SecretInput } from "@/components/SecretInput";
 import { GuessPad } from "@/components/GuessPad";
 import { LockDisplay } from "@/components/LockDisplay";
@@ -35,6 +36,7 @@ type GameRow = {
 type Mode = "menu" | "create" | "join" | "reconnect" | "playing" | "bot-setup" | "bot-playing";
 
 const STORAGE_KEY = "cadeado-session";
+const IS_NATIVE_APP = Capacitor.isNativePlatform();
 
 interface Session {
   gameId: string;
@@ -70,6 +72,7 @@ const Index = () => {
   const [shake, setShake] = useState(false);
   const [muted, setMuted] = useState(sfx.isMuted());
   const [finishedSoundPlayed, setFinishedSoundPlayed] = useState(false);
+  const lastSyncRef = useRef(0);
 
   // ===== BOT MODE state (totally local, no backend) =====
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>("easy");
@@ -94,6 +97,13 @@ const Index = () => {
   // realtime subscribe
   useEffect(() => {
     if (!session) return;
+
+    let disposed = false;
+    const syncGame = async () => {
+      lastSyncRef.current = Date.now();
+      await loadGame(session.gameId);
+    };
+
     const channel = supabase
       .channel(`game-${session.gameId}`)
       .on(
@@ -101,19 +111,51 @@ const Index = () => {
         { event: "*", schema: "public", table: "games", filter: `id=eq.${session.gameId}` },
         (payload) => {
           if (payload.eventType === "DELETE") return;
+          lastSyncRef.current = Date.now();
           if (payload.new) {
             setGame(toGameRow(payload.new));
             return;
           }
-          void loadGame(session.gameId);
+          void syncGame();
         }
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          void loadGame(session.gameId);
+          void syncGame();
+          return;
+        }
+
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          void syncGame();
         }
       });
+
+    const handleResumeSync = () => {
+      if (document.visibilityState !== "visible") return;
+      void syncGame();
+    };
+
+    const nativeFallbackInterval = IS_NATIVE_APP
+      ? window.setInterval(() => {
+          if (disposed) return;
+          if (document.visibilityState !== "visible") return;
+          if (Date.now() - lastSyncRef.current < 1500) return;
+          void syncGame();
+        }, 1000)
+      : null;
+
+    window.addEventListener("focus", handleResumeSync);
+    window.addEventListener("online", handleResumeSync);
+    document.addEventListener("visibilitychange", handleResumeSync);
+
     return () => {
+      disposed = true;
+      window.removeEventListener("focus", handleResumeSync);
+      window.removeEventListener("online", handleResumeSync);
+      document.removeEventListener("visibilitychange", handleResumeSync);
+      if (nativeFallbackInterval) {
+        window.clearInterval(nativeFallbackInterval);
+      }
       supabase.removeChannel(channel);
     };
   }, [session?.gameId]);
