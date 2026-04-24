@@ -816,8 +816,16 @@ const Index = () => {
     );
   }
 
-  if (!game || !session) {
-    return <main className="min-h-screen flex items-center justify-center">Carregando…</main>;
+  if (isConnectingToRoom || (mode === "playing" && (!game || !session))) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-md text-center space-y-3 pop-card-lg p-8 bg-card">
+          <div className="text-3xl">🔒</div>
+          <div className="text-xl font-bold">Entrando na sala…</div>
+          <div className="text-sm text-muted-foreground">Sincronizando a partida sem trocar o fluxo do jogo.</div>
+        </div>
+      </main>
+    );
   }
 
   const me = session.player;
