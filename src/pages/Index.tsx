@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Capacitor } from "@capacitor/core";
 import { SecretInput } from "@/components/SecretInput";
 import { GuessPad } from "@/components/GuessPad";
 import { LockDisplay } from "@/components/LockDisplay";
@@ -36,7 +35,6 @@ type GameRow = {
 type Mode = "menu" | "create" | "join" | "reconnect" | "playing" | "bot-setup" | "bot-playing";
 
 const STORAGE_KEY = "cadeado-session";
-const IS_NATIVE_APP = Capacitor.isNativePlatform();
 
 interface Session {
   gameId: string;
@@ -72,7 +70,9 @@ const Index = () => {
   const [shake, setShake] = useState(false);
   const [muted, setMuted] = useState(sfx.isMuted());
   const [finishedSoundPlayed, setFinishedSoundPlayed] = useState(false);
+  const [isConnectingToRoom, setIsConnectingToRoom] = useState(false);
   const lastSyncRef = useRef(0);
+  const syncInFlightRef = useRef(false);
 
   // ===== BOT MODE state (totally local, no backend) =====
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>("easy");
@@ -82,16 +82,34 @@ const Index = () => {
 
   // restore session
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const s: Session = JSON.parse(raw);
-      setSession(s);
-      setMode("playing");
-      loadGame(s.gameId);
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
-    }
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+
+      try {
+        const savedSession: Session = JSON.parse(raw);
+        setIsConnectingToRoom(true);
+        const restoredGame = await loadGame(savedSession.gameId);
+        if (!restoredGame || cancelled) return;
+
+        saveSession(savedSession);
+        setMode("playing");
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
+      } finally {
+        if (!cancelled) {
+          setIsConnectingToRoom(false);
+        }
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // realtime subscribe
@@ -99,9 +117,18 @@ const Index = () => {
     if (!session) return;
 
     let disposed = false;
+    const pollIntervalMs = game?.status === "waiting" ? 400 : 800;
+    const staleAfterMs = game?.status === "waiting" ? 250 : 700;
+
     const syncGame = async () => {
-      lastSyncRef.current = Date.now();
-      await loadGame(session.gameId);
+      if (syncInFlightRef.current) return;
+
+      syncInFlightRef.current = true;
+      try {
+        await loadGame(session.gameId);
+      } finally {
+        syncInFlightRef.current = false;
+      }
     };
 
     const channel = supabase
@@ -120,6 +147,8 @@ const Index = () => {
         }
       )
       .subscribe((status) => {
+        if (disposed) return;
+
         if (status === "SUBSCRIBED") {
           void syncGame();
           return;
@@ -135,14 +164,12 @@ const Index = () => {
       void syncGame();
     };
 
-    const nativeFallbackInterval = IS_NATIVE_APP
-      ? window.setInterval(() => {
-          if (disposed) return;
-          if (document.visibilityState !== "visible") return;
-          if (Date.now() - lastSyncRef.current < 1500) return;
-          void syncGame();
-        }, 1000)
-      : null;
+    const safetyPollInterval = window.setInterval(() => {
+      if (disposed) return;
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastSyncRef.current < staleAfterMs) return;
+      void syncGame();
+    }, pollIntervalMs);
 
     window.addEventListener("focus", handleResumeSync);
     window.addEventListener("online", handleResumeSync);
@@ -153,12 +180,10 @@ const Index = () => {
       window.removeEventListener("focus", handleResumeSync);
       window.removeEventListener("online", handleResumeSync);
       document.removeEventListener("visibilitychange", handleResumeSync);
-      if (nativeFallbackInterval) {
-        window.clearInterval(nativeFallbackInterval);
-      }
+      window.clearInterval(safetyPollInterval);
       supabase.removeChannel(channel);
     };
-  }, [session?.gameId]);
+  }, [session?.gameId, game?.status]);
 
   // play win/lose sound when game finishes
   useEffect(() => {
@@ -248,7 +273,7 @@ const Index = () => {
   }
 
 
-  async function loadGame(id: string) {
+  async function loadGame(id: string): Promise<GameRow | null> {
     const { data, error } = await supabase
       .from("games_public" as any)
       .select("*")
@@ -256,7 +281,7 @@ const Index = () => {
       .maybeSingle();
     if (error) {
       console.error("loadGame error", error);
-      return;
+      return null;
     }
     if (!data) {
       // game no longer exists — clear stale session
@@ -264,9 +289,26 @@ const Index = () => {
       setSession(null);
       setGame(null);
       setMode("menu");
-      return;
+      return null;
     }
-    setGame(toGameRow(data));
+    const nextGame = toGameRow(data);
+    lastSyncRef.current = Date.now();
+    setGame(nextGame);
+    return nextGame;
+  }
+
+  async function enterRoom(nextSession: Session) {
+    setIsConnectingToRoom(true);
+    const nextGame = await loadGame(nextSession.gameId);
+    if (!nextGame) {
+      setIsConnectingToRoom(false);
+      return false;
+    }
+
+    saveSession(nextSession);
+    setMode("playing");
+    setIsConnectingToRoom(false);
+    return true;
   }
 
   function saveSession(s: Session) {
@@ -297,9 +339,7 @@ const Index = () => {
       return toast.error(error?.message ?? "Erro ao criar partida");
     }
     const row = data[0] as { id: string; code: string; token: string };
-    saveSession({ gameId: row.id, player: 1, name: name.trim(), secret: [...secret], token: row.token });
-    setMode("playing");
-    loadGame(row.id);
+    await enterRoom({ gameId: row.id, player: 1, name: name.trim(), secret: [...secret], token: row.token });
   }
 
   async function handleJoin() {
@@ -322,9 +362,7 @@ const Index = () => {
       return;
     }
     const row = (data as any[])[0] as { game_id: string; token: string };
-    saveSession({ gameId: row.game_id, player: 2, name: name.trim(), secret: [...secret], token: row.token });
-    setMode("playing");
-    loadGame(row.game_id);
+    await enterRoom({ gameId: row.game_id, player: 2, name: name.trim(), secret: [...secret], token: row.token });
   }
 
   async function handleReconnect() {
@@ -339,23 +377,22 @@ const Index = () => {
       return toast.error(error?.message ?? "Não foi possível reconectar. Confira código e nome.");
     }
     const row = data[0] as { game_id: string; player: number; token: string; secret: number[] };
-    saveSession({
+    const connected = await enterRoom({
       gameId: row.game_id,
       player: row.player as 1 | 2,
       name: name.trim(),
       secret: row.secret ?? undefined,
       token: row.token,
     });
-    setMode("playing");
-    loadGame(row.game_id);
-    toast.success(`Reconectado como Jogador ${row.player}!`);
+    if (connected) {
+      toast.success(`Reconectado como Jogador ${row.player}!`);
+    }
   }
 
-  function resumeSavedSession() {
+  async function resumeSavedSession() {
     if (!session) return;
     sfx.click();
-    setMode("playing");
-    loadGame(session.gameId);
+    await enterRoom(session);
   }
 
   async function handleGuess(n: number) {
@@ -779,8 +816,16 @@ const Index = () => {
     );
   }
 
-  if (!game || !session) {
-    return <main className="min-h-screen flex items-center justify-center">Carregando…</main>;
+  if (isConnectingToRoom || (mode === "playing" && (!game || !session))) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-md text-center space-y-3 pop-card-lg p-8 bg-card">
+          <div className="text-3xl">🔒</div>
+          <div className="text-xl font-bold">Entrando na sala…</div>
+          <div className="text-sm text-muted-foreground">Sincronizando a partida sem trocar o fluxo do jogo.</div>
+        </div>
+      </main>
+    );
   }
 
   const me = session.player;
