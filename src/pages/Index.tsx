@@ -73,6 +73,7 @@ const Index = () => {
   const [isConnectingToRoom, setIsConnectingToRoom] = useState(false);
   const lastSyncRef = useRef(0);
   const syncInFlightRef = useRef(false);
+  const realtimeChannelRef = useRef<any>(null);
 
   // ===== BOT MODE state (totally local, no backend) =====
   const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>("easy");
@@ -117,8 +118,8 @@ const Index = () => {
     if (!session) return;
 
     let disposed = false;
-    const pollIntervalMs = game?.status === "waiting" ? 400 : 800;
-    const staleAfterMs = game?.status === "waiting" ? 250 : 700;
+    const pollIntervalMs = 300;
+    const staleAfterMs = 250;
 
     const syncGame = async () => {
       if (syncInFlightRef.current) return;
@@ -133,6 +134,11 @@ const Index = () => {
 
     const channel = supabase
       .channel(`game-${session.gameId}`)
+      .on("broadcast", { event: "game-changed" }, (payload) => {
+        if (payload.payload?.gameId && payload.payload.gameId !== session.gameId) return;
+        lastSyncRef.current = 0;
+        void syncGame();
+      })
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "games", filter: `id=eq.${session.gameId}` },
@@ -158,15 +164,14 @@ const Index = () => {
           void syncGame();
         }
       });
+    realtimeChannelRef.current = channel;
 
     const handleResumeSync = () => {
-      if (document.visibilityState !== "visible") return;
       void syncGame();
     };
 
     const safetyPollInterval = window.setInterval(() => {
       if (disposed) return;
-      if (document.visibilityState !== "visible") return;
       if (Date.now() - lastSyncRef.current < staleAfterMs) return;
       void syncGame();
     }, pollIntervalMs);
@@ -181,9 +186,10 @@ const Index = () => {
       window.removeEventListener("online", handleResumeSync);
       document.removeEventListener("visibilitychange", handleResumeSync);
       window.clearInterval(safetyPollInterval);
+      if (realtimeChannelRef.current === channel) realtimeChannelRef.current = null;
       supabase.removeChannel(channel);
     };
-  }, [session?.gameId, game?.status]);
+  }, [session?.gameId]);
 
   // play win/lose sound when game finishes
   useEffect(() => {
@@ -411,6 +417,12 @@ const Index = () => {
       sfx.miss();
       return toast.error(error.message);
     }
+    void realtimeChannelRef.current?.send({
+      type: "broadcast",
+      event: "game-changed",
+      payload: { gameId: session.gameId },
+    }).catch((error: unknown) => console.warn("broadcast game-changed failed", error));
+    void loadGame(session.gameId);
     const result = data as { correct: boolean; hint: string };
     if (!result.correct) {
       setShake(true);
