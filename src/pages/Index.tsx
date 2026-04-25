@@ -417,6 +417,12 @@ const Index = () => {
       sfx.miss();
       return toast.error(error.message);
     }
+    await realtimeChannelRef.current?.send({
+      type: "broadcast",
+      event: "game-changed",
+      payload: { gameId: session.gameId },
+    });
+    void loadGame(session.gameId);
     const result = data as { correct: boolean; hint: string };
     if (!result.correct) {
       setShake(true);
