@@ -151,7 +151,7 @@ export type Database = {
         Returns: Json
       }
       reconnect_game: {
-        Args: { _code: string; _name: string }
+        Args: { _code: string; _name: string; _token: string }
         Returns: {
           game_id: string
           player: number
