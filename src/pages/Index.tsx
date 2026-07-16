@@ -374,10 +374,14 @@ const Index = () => {
   async function handleReconnect() {
     if (!name.trim()) return toast.error("Digite o nome que você usou na sala");
     if (!joinCode.trim()) return toast.error("Digite o código da sala");
+    if (!session?.token) {
+      return toast.error("Sessão original não encontrada neste dispositivo. Por segurança, só é possível reconectar do mesmo aparelho/navegador em que você entrou.");
+    }
     sfx.click();
     const { data, error } = await supabase.rpc("reconnect_game", {
       _code: joinCode.trim().toUpperCase(),
       _name: name.trim(),
+      _token: session.token,
     });
     if (error || !data || !data[0]) {
       return toast.error(error?.message ?? "Não foi possível reconectar. Confira código e nome.");
