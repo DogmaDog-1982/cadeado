@@ -7,18 +7,29 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Diagnósticos e relatórios
+.npm/
+
+# Pastas de dependências (NUNCA suba isso)
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Arquivos de ambiente e chaves sensíveis (AQUI ESTÁ A PROTEÇÃO)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Editor de código e SO
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
 *.suo
-*.ntvs*
+*.ntvs
 *.njsproj
 *.sln
 *.sw?
